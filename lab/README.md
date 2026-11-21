@@ -10,7 +10,7 @@ From this directory:
 docker compose up
 ```
 
-Floci listens on port 4566. The image is `floci/floci:latest`, a floating tag for a local lab. A future CI job should pin a digest.
+Floci listens on port 4566. The image is `floci/floci:latest`, a floating tag for this local lab. Pin a digest when you want the lab to stay on one build.
 
 The Docker socket is mounted because OpenSearch, RDS, and MSK in Floci start as containers. That socket can control the local Docker daemon. Use this compose file only on a machine you trust, and only with the dummy credentials below.
 
@@ -51,4 +51,6 @@ The answer should come from the emulator. If `AWS_ENDPOINT_URL` is unset, the AW
 
 ## CI, later
 
-Floci, the AWS emulator, is the intended place for contract tests: run it as a GitHub Actions service, point tests at `http://localhost:4566`, and assert `graph` and `check` against synthetic resources. Those tests are not wired into CI in this scaffold. Do not point CI at a real AWS account.
+Floci is the local lab. Contract tests in CI, when they are added, run against the official [AWS Emulator](https://aws.amazon.com/blogs/aws/test-your-applications-against-aws-locally-with-aws-emulator/): start it in the job, point the SDK at its local endpoint, and assert `graph` and `check` on synthetic resources. Those tests are not in this scaffold.
+
+Neither Floci nor AWS Emulator evaluates IAM the way AWS does. A call AWS would deny can succeed in either one. The read-only safety gate in `internal/safety` still needs a final test against a throwaway real AWS account: no production data, credentials that can be discarded, and no standing CI job pointed at that account.

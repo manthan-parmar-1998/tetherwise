@@ -91,7 +91,7 @@ Config loading is wired (`--config`, `./tetherwise.yaml`, `$HOME/.config/tetherw
 
 ## Lab
 
-[lab/](lab/README.md) runs [Floci](https://floci.io/), a local AWS emulator, so a later lesson can recreate a synthetic shared-OpenSearch overload. Contract tests against that emulator are a future CI option. They are not wired up, and CI does not talk to a real AWS account.
+[lab/](lab/README.md) runs [Floci](https://floci.io/) as the local lab, so a later lesson can recreate a synthetic shared-OpenSearch overload. Future CI contract tests target the official [AWS Emulator](https://aws.amazon.com/blogs/aws/test-your-applications-against-aws-locally-with-aws-emulator/). Neither emulator evaluates IAM faithfully, so the read-only safety gate still needs a final test against a throwaway real AWS account. None of that is wired into CI.
 
 ## Releases
 
