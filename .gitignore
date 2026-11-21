@@ -1,0 +1,28 @@
+# Binaries and release output
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Tests and profiles
+*.test
+*.out
+coverage.*
+profile.cov
+
+# Editor and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local config, secrets, and lab state
+.env
+.env.*
+*.local
+/tetherwise.yaml
+/.tetherwise.yaml
+/lab/data/
+results.sarif

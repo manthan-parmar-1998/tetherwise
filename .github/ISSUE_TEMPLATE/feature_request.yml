@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a change that stays inside the read-only design
+title: "feat: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        tetherwise does not mutate cloud resources, and an assistant never
+        holds credentials. A proposal that needs either of those will be declined.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is stuck, and what question they cannot answer today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety
+      description: How this stays read-only, local, and free of real infrastructure data.
+    validations:
+      required: true

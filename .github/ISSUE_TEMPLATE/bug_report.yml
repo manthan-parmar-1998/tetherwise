@@ -1,0 +1,30 @@
+name: Bug report
+description: A command, a report, or the lab did something wrong
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste real Terraform state, kubeconfigs, cloud account ids,
+        customer names, or credentials. Use synthetic names.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: tetherwise version
+      description: Output of `tetherwise version`.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Synthetic data only. A minimal fixture is more useful than a full state file.
+    validations:
+      required: true
