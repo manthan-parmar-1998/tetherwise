@@ -174,7 +174,11 @@ func (a *app) prove(cmd *cobra.Command, live, wantAWS bool) error {
 	ctx, cancel := context.WithTimeout(commandContext(cmd), 20*time.Second)
 	defer cancel()
 	opt := safety.Options{IKnow: a.v.GetBool("i-know"), Audit: a.audit}
-	if wantAWS || safety.CredentialsConfigured() {
+	// The AWS proof runs only when this command will read from AWS.
+	// Offline inputs (files, fixtures) make no cloud call, so a ~/.aws
+	// profile on the machine must not turn an offline run into STS and
+	// IAM calls, or into a refusal when those calls fail.
+	if wantAWS {
 		identity, simulator, err := safety.AWSClients(ctx)
 		if err != nil {
 			if opt.IKnow {

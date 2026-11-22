@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -244,31 +242,6 @@ func AWSClients(ctx context.Context) (IdentityAPI, SimulatorAPI, error) {
 		return nil, nil, fmt.Errorf("load aws config: %w", err)
 	}
 	return sts.NewFromConfig(cfg), iam.NewFromConfig(cfg), nil
-}
-
-// CredentialsConfigured reports whether the process has a credential file
-// or environment variable that would select an AWS principal.
-// It does not contact the instance metadata service.
-func CredentialsConfigured() bool {
-	if os.Getenv("AWS_ACCESS_KEY_ID") != "" || os.Getenv("AWS_PROFILE") != "" || os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") != "" ||
-		os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" || os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI") != "" {
-		return true
-	}
-	if path := os.Getenv("AWS_SHARED_CREDENTIALS_FILE"); path != "" {
-		if _, err := os.Stat(path); err == nil { //nolint:gosec // G703: AWS credentials file path from the environment
-			return true
-		}
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-	for _, name := range []string{"credentials", "config"} {
-		if _, err := os.Stat(filepath.Join(home, ".aws", name)); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // KubeReviewer posts SelfSubjectAccessReviews through Verb("create").

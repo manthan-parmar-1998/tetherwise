@@ -112,36 +112,6 @@ func TestProveKubernetes(t *testing.T) {
 	}
 }
 
-func TestCredentialsConfigured(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	t.Setenv("AWS_PROFILE", "")
-	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "")
-	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "")
-	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "")
-	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "")
-	if CredentialsConfigured() {
-		t.Fatal("empty home looks configured")
-	}
-	t.Setenv("AWS_ACCESS_KEY_ID", "test")
-	if !CredentialsConfigured() {
-		t.Fatal("access key")
-	}
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	path := filepath.Join(home, ".aws", "credentials")
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("[default]\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if !CredentialsConfigured() {
-		t.Fatal("credentials file")
-	}
-}
-
 func TestDeployManifests(t *testing.T) {
 	t.Parallel()
 	policy := readRepo(t, "deploy/iam-policy.json")

@@ -207,3 +207,49 @@ func TestBadFlags(t *testing.T) {
 		t.Fatal("bad metrics")
 	}
 }
+
+// An offline check must not turn into AWS calls because the machine has an
+// AWS profile. Before the fix, a ~/.aws/config made the offline demo call
+// sts:GetCallerIdentity and refuse to run when that call failed.
+func TestOfflineCheckIgnoresAWSProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("AWS_PROFILE", "default")
+	cfg := filepath.Join(home, ".aws", "config")
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte("[default]\nregion = ca-central-1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := scenarioDir(t)
+	for _, args := range [][]string{
+		{"check", filepath.Join(dir, "plan.json"),
+			"--k8s", filepath.Join(dir, "k8s"),
+			"--edges", filepath.Join(dir, "tetherwise.edges.yaml"),
+			"--metrics", "fixture:" + filepath.Join(dir, "metrics.json")},
+		{"graph", "--tf-plan", filepath.Join(dir, "plan.json")},
+	} {
+		_, stderr, code := execute(t, args...)
+		if code != 0 {
+			t.Fatalf("%s code %d with an AWS profile present\n%s", args[0], code, stderr)
+		}
+		if strings.Contains(stderr, "GetCallerIdentity") {
+			t.Fatalf("%s contacted STS offline\n%s", args[0], stderr)
+		}
+	}
+}
+
+// --metrics cloudwatch still has to prove read-only first.
+func TestCloudWatchCheckStillProves(t *testing.T) {
+	dir := scenarioDir(t)
+	_, stderr, code := execute(t, "check", filepath.Join(dir, "plan.json"),
+		"--metrics", "cloudwatch")
+	if code == 0 {
+		t.Fatal("cloudwatch check without credentials succeeded")
+	}
+	if !strings.Contains(stderr, "refusing to run") {
+		t.Fatalf("stderr = %q, want a refusal", stderr)
+	}
+}

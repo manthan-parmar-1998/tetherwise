@@ -14,7 +14,7 @@ One field on the CloudWatch request is named `StartTime`. That is a timestamp, n
 
 `internal/safety` runs before a cloud or cluster read.
 
-When AWS credentials are configured (environment variables or a credentials file; the instance metadata service is not probed), the process calls:
+When the command will read from AWS (`--metrics cloudwatch`), the process first calls:
 
 1. `sts:GetCallerIdentity`
 2. `iam:SimulatePrincipalPolicy` for a fixed list of mutating actions (`es:DeleteDomain`, `rds:ModifyDBInstance`, `kafka:DeleteCluster`, `cloudwatch:PutMetricData`, and the others in `MutatingActions`)
@@ -23,7 +23,7 @@ If any simulated action is allowed, the process refuses to run. If identity or s
 
 When `--k8s-live` is set, the process submits a `SelfSubjectAccessReview` for `create`, `update`, `delete`, and `patch` on deployments, configmaps, and pods. An allowed verb refuses the run, with the same `--i-know` escape hatch. The review is posted with `RESTClient.Verb("create")`. That is how the API server accepts a review. It does not create a workload, and it is not a client-go `Create` method, so the static ban still sees a forbidden `Create` if someone adds one.
 
-No AWS credentials and no live cluster means there is nothing to prove, and the offline demo does not contact a network.
+Offline inputs (Terraform JSON, manifests, edges, `--metrics fixture:`) make no cloud call, so there is nothing to prove. The offline demo does not contact a network, even on a machine with an AWS profile configured.
 
 ## What the process is allowed to call
 
