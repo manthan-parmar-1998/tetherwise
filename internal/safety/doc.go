@@ -1,13 +1,15 @@
 // Package safety proves the process is read-only before any cloud call.
 //
-// TODO(manthan): At startup, refuse to continue unless the process can
-// show it has no mutating client and no path that would apply, create,
-// update, or delete. An assistant, MCP server, or plugin must never
-// receive credentials; enforce that here when those integrations exist.
-// Floci and the official AWS Emulator do not evaluate IAM faithfully, so
-// the last check of this gate is a test against a throwaway real AWS
-// account. See lab/README.md.
+// When AWS credentials are configured, Prove calls sts:GetCallerIdentity
+// and iam:SimulatePrincipalPolicy for a fixed list of mutating actions.
+// If any of those actions is allowed, Prove refuses to continue unless
+// the caller passed --i-know. When a Kubernetes client will be used, Prove
+// submits SelfSubjectAccessReviews for create, update, delete, and patch
+// on workloads. The review itself is posted with the HTTP verb "create"
+// because that is how the API server accepts a review; it does not create
+// a workload. forbidigo cannot see the verb string, and the call site uses
+// RESTClient.Verb so the static ban on client-go Create stays in force.
 //
-// The forbidigo rules in .golangci.yml are the static half of this rule.
-// They are not a substitute for the startup proof.
+// Floci and the AWS Emulator do not evaluate IAM the way AWS does. The
+// last check of this gate is a throwaway real account. See docs/safety.md.
 package safety

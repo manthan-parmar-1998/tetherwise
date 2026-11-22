@@ -1,6 +1,6 @@
-// Package terraform reads Terraform state and plan into graph inputs.
+// Package terraform reads Terraform state and plan JSON into graph inputs.
 //
-// TODO(manthan): Parse state and plan JSON into resources and edges.
-// Read files the user points at. Never run terraform apply, and never call
-// a cloud API from this package.
+// It parses the documents produced by `terraform show -json` with
+// hashicorp/terraform-json. It reads files the user points at. It does not
+// run terraform apply and it does not call a cloud API.
 package terraform

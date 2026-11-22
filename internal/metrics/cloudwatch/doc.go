@@ -1,7 +1,6 @@
-// Package cloudwatch reads CloudWatch metrics for shared resources.
+// Package cloudwatch reads headroom for OpenSearch, RDS, and MSK.
 //
-// TODO(manthan): Read headroom for OpenSearch, RDS, and MSK with the
-// CloudWatch read APIs (GetMetricData, GetMetricStatistics, ListMetrics).
-// Never call PutMetricData or any other mutating AWS API. The forbidigo
-// rules in .golangci.yml reject those calls.
+// The CloudWatch implementation calls GetMetricData only. A fixture
+// implementation replays recorded samples so checks run offline.
+// PutMetricData and every other mutating AWS API are out of scope.
 package cloudwatch

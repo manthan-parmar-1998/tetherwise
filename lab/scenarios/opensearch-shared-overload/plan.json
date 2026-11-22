@@ -1,0 +1,174 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.8",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_opensearch_domain.search",
+          "mode": "managed",
+          "type": "aws_opensearch_domain",
+          "name": "search",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "domain_name": "search-lab",
+            "endpoint": "search-lab.us-east-1.es.amazonaws.com",
+            "tags": {
+              "Owner": "platform-oncall",
+              "Team": "Platform"
+            }
+          }
+        },
+        {
+          "address": "aws_cloudwatch_log_group.eks",
+          "mode": "managed",
+          "type": "aws_cloudwatch_log_group",
+          "name": "eks",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "name": "eks-lab",
+            "retention_in_days": 30
+          }
+        },
+        {
+          "address": "aws_cloudwatch_log_subscription_filter.eks",
+          "mode": "managed",
+          "type": "aws_cloudwatch_log_subscription_filter",
+          "name": "eks",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "destination_arn": "search-lab.us-east-1.es.amazonaws.com",
+            "filter_pattern": "",
+            "log_group_name": "eks-lab",
+            "name": "eks-logs"
+          },
+          "depends_on": [
+            "aws_cloudwatch_log_group.eks",
+            "aws_opensearch_domain.search"
+          ]
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "aws_opensearch_domain.search",
+      "mode": "managed",
+      "type": "aws_opensearch_domain",
+      "name": "search",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {
+          "domain_name": "search-lab",
+          "endpoint": "search-lab.us-east-1.es.amazonaws.com"
+        },
+        "after": {
+          "domain_name": "search-lab",
+          "endpoint": "search-lab.us-east-1.es.amazonaws.com"
+        }
+      }
+    },
+    {
+      "address": "aws_cloudwatch_log_group.eks",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "name": "eks",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name": "eks-lab",
+          "retention_in_days": 7
+        },
+        "after": {
+          "name": "eks-lab",
+          "retention_in_days": 30
+        }
+      }
+    },
+    {
+      "address": "aws_cloudwatch_log_subscription_filter.eks",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_subscription_filter",
+      "name": "eks",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "destination_arn": "search-lab.us-east-1.es.amazonaws.com",
+          "filter_pattern": "{ $.level = \"ERROR\" }",
+          "log_group_name": "eks-lab",
+          "name": "eks-logs"
+        },
+        "after": {
+          "destination_arn": "search-lab.us-east-1.es.amazonaws.com",
+          "filter_pattern": "",
+          "log_group_name": "eks-lab",
+          "name": "eks-logs"
+        }
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_opensearch_domain.search",
+          "mode": "managed",
+          "type": "aws_opensearch_domain",
+          "name": "search",
+          "provider_config_key": "aws",
+          "schema_version": 0,
+          "expressions": {
+            "domain_name": {
+              "constant_value": "search-lab"
+            }
+          }
+        },
+        {
+          "address": "aws_cloudwatch_log_group.eks",
+          "mode": "managed",
+          "type": "aws_cloudwatch_log_group",
+          "name": "eks",
+          "provider_config_key": "aws",
+          "schema_version": 0,
+          "expressions": {
+            "name": {
+              "constant_value": "eks-lab"
+            },
+            "retention_in_days": {
+              "constant_value": 30
+            }
+          }
+        },
+        {
+          "address": "aws_cloudwatch_log_subscription_filter.eks",
+          "mode": "managed",
+          "type": "aws_cloudwatch_log_subscription_filter",
+          "name": "eks",
+          "provider_config_key": "aws",
+          "schema_version": 0,
+          "expressions": {
+            "destination_arn": {
+              "references": ["aws_opensearch_domain.search.endpoint"]
+            },
+            "filter_pattern": {
+              "constant_value": ""
+            },
+            "log_group_name": {
+              "references": ["aws_cloudwatch_log_group.eks.name"]
+            }
+          },
+          "depends_on": [
+            "aws_cloudwatch_log_group.eks",
+            "aws_opensearch_domain.search"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -35,20 +35,26 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Version, graph, and check
+      - name: Version and offline demo
         run: |
           set -euo pipefail
           ./bin/tetherwise version | grep -q tetherwise
+          ./bin/tetherwise graph \
+            --tf-plan lab/scenarios/opensearch-shared-overload/plan.json \
+            --k8s lab/scenarios/opensearch-shared-overload/k8s \
+            --edges lab/scenarios/opensearch-shared-overload/tetherwise.edges.yaml \
+            -o /tmp/tetherwise-snapshot.json
           set +e
-          graph_out=$(./bin/tetherwise graph 2>&1)
-          graph_code=$?
-          check_out=$(./bin/tetherwise check 2>&1)
-          check_code=$?
+          ./bin/tetherwise check lab/scenarios/opensearch-shared-overload/plan.json \
+            --snapshot /tmp/tetherwise-snapshot.json \
+            --metrics fixture:lab/scenarios/opensearch-shared-overload/metrics.json \
+            --format markdown \
+            --fail-on high >/tmp/tetherwise-comment.md
+          code=$?
           set -e
-          test "$graph_code" -ne 0
-          test "$check_code" -ne 0
-          printf '%s\n' "$graph_out" | grep -q "not implemented yet"
-          printf '%s\n' "$check_out" | grep -q "not implemented yet"
+          test "$code" -eq 2
+          grep -q "high-exposure" /tmp/tetherwise-comment.md
+          grep -q "keel/keel-query" /tmp/tetherwise-comment.md
 
   lint:
     name: golangci-lint

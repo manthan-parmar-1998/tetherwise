@@ -1,0 +1,86 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.9.8",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_security_group.db",
+          "mode": "managed",
+          "type": "aws_security_group",
+          "name": "db",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 1,
+          "values": {
+            "id": "sg-lab",
+            "name": "db",
+            "tags": {
+              "Owner": "payments-oncall",
+              "Team": "Payments"
+            }
+          }
+        },
+        {
+          "address": "aws_db_instance.payments",
+          "mode": "managed",
+          "type": "aws_db_instance",
+          "name": "payments",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 1,
+          "values": {
+            "endpoint": {
+              "address": "payments.lab.example.local",
+              "port": 5432
+            },
+            "engine": "postgres",
+            "identifier": "payments",
+            "password": "synthetic-secret",
+            "tags": {
+              "Owner": "payments-oncall",
+              "Team": "Payments"
+            },
+            "vpc_security_group_ids": ["sg-lab"]
+          },
+          "depends_on": ["aws_security_group.db"],
+          "sensitive_values": {
+            "password": true
+          }
+        },
+        {
+          "address": "aws_ssm_parameter.db_host",
+          "mode": "managed",
+          "type": "aws_ssm_parameter",
+          "name": "db_host",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "name": "db-host",
+            "value": "postgres://payments.lab.example.local:5432/app"
+          }
+        }
+      ],
+      "child_modules": [
+        {
+          "address": "module.extra",
+          "resources": [
+            {
+              "address": "module.extra.aws_msk_cluster.events",
+              "mode": "managed",
+              "type": "aws_msk_cluster",
+              "name": "events",
+              "provider_name": "registry.terraform.io/hashicorp/aws",
+              "schema_version": 2,
+              "values": {
+                "bootstrap_brokers_tls": "b-1.events.lab.example.local:9094",
+                "cluster_name": "events",
+                "tags": {
+                  "Team": "Events"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

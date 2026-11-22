@@ -45,9 +45,11 @@ aws sts get-caller-identity
 
 The answer should come from the emulator. If `AWS_ENDPOINT_URL` is unset, the AWS CLI talks to real AWS. Stop and fix the environment if that happens.
 
-## What the lab will become
+## Offline scenario
 
-[`scenarios/opensearch-shared-overload/`](scenarios/opensearch-shared-overload/README.md) is the story of a synthetic shared-OpenSearch overload. The Terraform, Kubernetes config, edges file, and CloudWatch samples are not in this directory yet. Manthan will add them while writing the source and metrics packages. Until then, `docker compose up` only starts the emulator.
+[`scenarios/opensearch-shared-overload/`](scenarios/opensearch-shared-overload/README.md) is a synthetic shared-OpenSearch overload. `make demo` from the repository root runs it with recorded metrics. No emulator and no credentials are required.
+
+`scenarios/opensearch-shared-overload/online.sh` is optional. It talks to Floci only when `AWS_ENDPOINT_URL` is `http://127.0.0.1:4566` or `http://localhost:4566`, and it passes `--i-know` because the emulator does not evaluate IAM.
 
 ## CI, later
 

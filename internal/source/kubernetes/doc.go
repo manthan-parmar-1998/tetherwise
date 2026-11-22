@@ -1,7 +1,6 @@
 // Package kubernetes reads Kubernetes config into graph inputs.
 //
-// TODO(manthan): Discover workloads and the shared resources they reference,
-// from manifests on disk and, when asked, from a read-only API client.
-// Get, List, and Watch are in scope. Create, Update, Delete, Patch, and
-// Apply are not. The forbidigo rules in .golangci.yml reject those calls.
+// Manifests on disk are decoded with sigs.k8s.io/yaml and the typed API
+// objects in k8s.io/api. A live read, when asked for, uses client-go Get
+// and List only. Create, Update, Delete, Patch, and Apply are not used.
 package kubernetes

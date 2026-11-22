@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit
+  namespace: atlas
+  labels:
+    team: Atlas
+    owner: atlas-oncall
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush  1
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  search-lab.us-east-1.es.amazonaws.com
+        Port  443
+        Index logs
+  vector.toml: |
+    [sinks.search]
+    type = "elasticsearch"
+    inputs = ["logs"]
+    endpoints = ["https://search-lab.us-east-1.es.amazonaws.com:443"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlas-indexer
+  namespace: atlas
+  labels:
+    app: atlas-indexer
+    team: Atlas
+    owner: atlas-oncall
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlas-indexer
+  template:
+    metadata:
+      labels:
+        app: atlas-indexer
+        team: Atlas
+    spec:
+      containers:
+        - name: indexer
+          image: example.local/atlas-indexer:1.0.0
+          env:
+            - name: OPENSEARCH_ENDPOINT
+              value: search-lab.us-east-1.es.amazonaws.com
+            - name: QUERY_URL
+              value: https://search-lab.us-east-1.es.amazonaws.com/products
+        - name: fluent-bit
+          image: example.local/fluent-bit:3.0.0
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc
+      volumes:
+        - name: config
+          configMap:
+            name: fluent-bit
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ignored
+  namespace: atlas
+spec:
+  ports:
+    - port: 80

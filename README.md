@@ -27,7 +27,7 @@ It must never mutate cloud resources.
 
 These are non-negotiable. A change that breaks one of them is a defect, including in a demo.
 
-1. **Read-only is proven at startup.** Before any cloud call, the process must show that it cannot mutate. That proof will live in `internal/safety`. It is not written yet.
+1. **Read-only is proven at startup.** Before any cloud call, the process must show that it cannot mutate. That proof is `internal/safety`, described in [docs/safety.md](docs/safety.md).
 2. **It never mutates.** No creates, deletes, updates, puts, or modifies, through the AWS APIs or through client-go. The `forbidigo` rules in [`.golangci.yml`](.golangci.yml) reject those calls at lint time. That is the static half of this rule. It is not a substitute for the startup proof.
 3. **AI never holds credentials.** An assistant, MCP server, or plugin may see a snapshot the CLI already produced. It does not receive cloud keys, kubeconfigs, or session tokens.
 4. **The audit log is append-only and redacted.** It stays on the machine. Secrets and account identifiers do not land in it. Entries are not rewritten in place.
@@ -36,15 +36,93 @@ These are non-negotiable. A change that breaks one of them is a defect, includin
 
 ## Status
 
-This repository is the prerequisite scaffold. The core is not implemented.
+v0.1 builds the graph, runs the check, and refuses to start when the caller is allowed to mutate. Public library types still wait for the v0.4 plugin SDK under `pkg/`. Until then the code stays in `internal/`.
 
 | Command | Behavior |
 | --- | --- |
 | `tetherwise version` | Prints the version injected at link time. |
-| `tetherwise graph` | Prints `not implemented yet` and exits non-zero. |
-| `tetherwise check` | Prints `not implemented yet` and exits non-zero. |
+| `tetherwise graph` | Writes a versioned snapshot from Terraform, Kubernetes, and an edges file. |
+| `tetherwise check` | Reports exposure for a plan. Exit 0, or exit 2 when `--fail-on high` and the verdict is `high-exposure`. |
 
-Each package under `internal/` is a `doc.go` with the responsibility and a `TODO(manthan)`. The maintainer is writing that code as a series of hard-way lessons. Public library types wait for the v0.4 plugin SDK under `pkg/`. Until then the code stays in `internal/`.
+How the four nouns, the sources, and the verdict fit together is in [docs/architecture.md](docs/architecture.md).
+
+## Quickstart
+
+The offline lab is the shared OpenSearch incident: a plan widens an EKS log filter and raises retention, and Atlas and Keel both ship logs to `search-lab`.
+
+```sh
+make demo
+```
+
+`make demo` prints the pull-request comment. This is that comment, from the fixtures in [lab/scenarios/opensearch-shared-overload](lab/scenarios/opensearch-shared-overload/README.md):
+
+```markdown
+## tetherwise
+
+**Verdict:** high-exposure
+
+This report names who else depends on the shared resources a change reaches, and the headroom on those resources.
+
+### Change
+
+| Resource | Action | Attributes |
+| --- | --- | --- |
+| aws:logs:log-group/eks-lab | update | retention_in_days |
+| aws:logs:subscription-filter/eks-logs | update | filter_pattern |
+
+### Who else is exposed
+
+| Service | Team | Owner | Shared resource | Relationship | Confidence | Headroom |
+| --- | --- | --- | --- | --- | --- | --- |
+| atlas/atlas-indexer | Atlas | atlas-oncall | aws:opensearch:domain/search-lab | connects-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| atlas/atlas-indexer | Atlas | atlas-oncall | aws:opensearch:domain/search-lab | writes-logs-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-checkout | Keel | keel-oncall | aws:opensearch:domain/search-lab | connects-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-checkout | Keel | keel-oncall | aws:opensearch:domain/search-lab | reads-from | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-checkout | Keel | keel-oncall | aws:opensearch:domain/search-lab | writes-logs-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-query | Keel | keel-oncall | aws:opensearch:domain/search-lab | connects-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-query | Keel | keel-oncall | aws:opensearch:domain/search-lab | reads-from | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+| keel/keel-query | Keel | keel-oncall | aws:opensearch:domain/search-lab | writes-logs-to | high | FreeStorageSpace -14480 (6000/20480 Megabytes) |
+
+### Shared resources
+
+| Resource | Teams | Headroom |
+| --- | --- | --- |
+| aws:opensearch:domain/search-lab | Atlas, Keel | CPUUtilization 40 (40/80 Percent); ClusterStatus.red 1 (0/1 Count); FreeStorageSpace -14480 (6000/20480 Megabytes); JVMMemoryPressure -7 (92/85 Percent) |
+
+### Why
+
+- update aws:logs:log-group/eks-lab changes retention_in_days.
+- update aws:logs:subscription-filter/eks-logs changes filter_pattern.
+- aws:opensearch:domain/search-lab is shared by Atlas, Keel.
+- FreeStorageSpace on aws:opensearch:domain/search-lab has headroom -14480 (current 6000, threshold 20480).
+- JVMMemoryPressure on aws:opensearch:domain/search-lab has headroom -7 (current 92, threshold 85).
+- Verdict is high-exposure because a shared resource is at or past a limit, or is being deleted or replaced.
+
+### Coverage
+
+- Sources loaded: edges-file, fixture, kubernetes, terraform
+- Edge sources: edges-file, fluentbit, k8s-env, terraform
+- Resources with no owner: aws:logs:log-group/eks-lab, aws:logs:subscription-filter/eks-logs
+- Low-confidence edges: none
+```
+
+Headroom is negative on free storage and on JVM memory pressure. Keel did not touch the pull request. The report does not say how much load the filter change will add.
+
+```sh
+make build
+./bin/tetherwise graph \
+  --tf-plan lab/scenarios/opensearch-shared-overload/plan.json \
+  --k8s lab/scenarios/opensearch-shared-overload/k8s \
+  --edges lab/scenarios/opensearch-shared-overload/tetherwise.edges.yaml \
+  -o snapshot.json
+./bin/tetherwise check lab/scenarios/opensearch-shared-overload/plan.json \
+  --snapshot snapshot.json \
+  --metrics fixture:lab/scenarios/opensearch-shared-overload/metrics.json \
+  --format markdown \
+  --fail-on high
+```
+
+The last command exits 2 because the verdict is `high-exposure`. Exit 1 is an error. Exit 0 is a completed check that was not asked to fail.
 
 ## Roadmap
 
@@ -58,18 +136,20 @@ Each package under `internal/` is a `doc.go` with the responsibility and a `TODO
 ## Layout
 
 ```
-cmd/tetherwise/                 CLI skeleton (cobra, viper)
-internal/model/                 domain types (stub)
-internal/source/terraform/      Terraform state and plan (stub)
-internal/source/kubernetes/     Kubernetes config (stub)
-internal/metrics/cloudwatch/    CloudWatch headroom (stub)
-internal/graph/                 dependency graph (stub)
-internal/check/                 exposure and confidence (stub)
-internal/safety/                startup read-only proof (stub)
-internal/report/                markdown comment and report.json (stub)
-internal/audit/                 append-only redacted log (stub)
-lab/                            Floci, for a synthetic shared-OpenSearch incident
-docs/                           hard-way lessons, starting with prerequisites
+cmd/tetherwise/                 CLI (graph, check, version)
+internal/model/                 resource, dependency, limit, change
+internal/source/terraform/      terraform show -json plan and state
+internal/source/kubernetes/     manifests and optional read-only list
+internal/source/edges/          tetherwise.edges.yaml
+internal/metrics/cloudwatch/    GetMetricData and recorded fixtures
+internal/graph/                 merge, snapshot, shared resources
+internal/check/                 exposure, confidence, coverage
+internal/safety/                startup read-only proof
+internal/report/                markdown comment and report.json
+internal/audit/                 append-only redacted log
+deploy/                         minimal IAM policy and ClusterRole
+lab/                            offline fixtures and optional Floci
+docs/                           architecture, safety, edges schema
 ```
 
 ## Develop
@@ -87,11 +167,11 @@ make fmt
 
 `make build` passes `-X main.version`, `-X main.commit`, and `-X main.date`. A release build sets the same variables from the git tag. See [`.goreleaser.yaml`](.goreleaser.yaml).
 
-Config loading is wired (`--config`, `./tetherwise.yaml`, `$HOME/.config/tetherwise/tetherwise.yaml`, and `TETHERWISE_` environment variables). The keys themselves are not defined yet.
+Config loading is wired (`--config`, `./tetherwise.yaml`, `$HOME/.config/tetherwise/tetherwise.yaml`, and `TETHERWISE_` environment variables). A `thresholds` block overrides the metric limits. `--i-know` and `--audit` bind to the same file.
 
 ## Lab
 
-[lab/](lab/README.md) runs [Floci](https://floci.io/) as the local lab, so a later lesson can recreate a synthetic shared-OpenSearch overload. Future CI contract tests target the official [AWS Emulator](https://aws.amazon.com/blogs/aws/test-your-applications-against-aws-locally-with-aws-emulator/). Neither emulator evaluates IAM faithfully, so the read-only safety gate still needs a final test against a throwaway real AWS account. None of that is wired into CI.
+[lab/](lab/README.md) runs [Floci](https://floci.io/) as the local lab. The shared-OpenSearch scenario also runs offline, with no emulator, via `make demo`. An optional script in that scenario talks to Floci on port 4566 and refuses any other endpoint. Future CI contract tests target the official [AWS Emulator](https://aws.amazon.com/blogs/aws/test-your-applications-against-aws-locally-with-aws-emulator/). Neither emulator evaluates IAM faithfully, so the read-only safety gate still needs a final test against a throwaway real AWS account. That test is not a CI job.
 
 ## Releases
 

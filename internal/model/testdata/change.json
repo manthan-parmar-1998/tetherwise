@@ -1,0 +1,7 @@
+{
+  "resource": "aws:logs:subscription-filter/eks-logs",
+  "action": "update",
+  "changed_attrs": [
+    "filter_pattern"
+  ]
+}
