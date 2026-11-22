@@ -1,0 +1,17 @@
+# Local AWS emulator for the tetherwise lab.
+# Synthetic data only. This file never points at a real AWS account.
+services:
+  floci:
+    image: floci/floci:latest
+    # The Floci CLI looks for a container named floci. Pinning the name
+    # makes `eval $(floci env)` work after `docker compose up`.
+    container_name: floci
+    ports:
+      - "4566:4566"
+    volumes:
+      # OpenSearch, RDS, and MSK run as nested containers. The socket is
+      # what lets the emulator start them. It can also control the local
+      # Docker daemon; keep this file on a trusted dev machine.
+      # Podman users: this path is the Docker socket. Point it at the
+      # Podman socket if that is what the machine runs.
+      - /var/run/docker.sock:/var/run/docker.sock

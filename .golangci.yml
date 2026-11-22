@@ -1,0 +1,66 @@
+# Read-only enforcement.
+#
+# tetherwise must never mutate cloud or cluster resources. The forbidigo
+# patterns below reject AWS SDK and client-go calls whose names start with
+# a mutating verb (Create, Delete, Update, Put, Modify, and the related
+# verbs in each pattern). Read calls stay allowed: Get, List, Describe,
+# Head, Watch, Query, Scan, and CloudWatch GetMetric*.
+#
+# analyze-types matches the method on its real type, so an import alias
+# does not hide a mutating call. The pkg filter limits the ban to
+# github.com/aws/aws-sdk-go, github.com/aws/aws-sdk-go-v2, and
+# k8s.io/client-go. A local helper named Create is not affected.
+#
+# This is the static half of the read-only principle. The runtime proof
+# that the process is read-only before the first cloud call belongs in
+# internal/safety and is not implemented yet.
+#
+# Do not silence a hit with //nolint:forbidigo. If a read API is
+# mis-classified (its name starts with one of these verbs), change the
+# pattern in a reviewed pull request.
+#
+# Two gaps the safety package still has to close, because forbidigo cannot
+# see them: client-go Request.Verb("create") and an AWS request built
+# without a mutating method name. AWS SDK v1 Request.Send is intentionally
+# not banned: that method dispatches reads and writes. The operation
+# constructor (PutObject, PutObjectRequest, CreateDBInstance, ...) is banned.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - forbidigo
+    - gocheckcompilerdirectives
+    - gosec
+    - misspell
+    - nilerr
+    - nolintlint
+    - predeclared
+    - revive
+    - unconvert
+    - wastedassign
+  settings:
+    forbidigo:
+      analyze-types: true
+      exclude-godoc-examples: true
+      forbid:
+        - pattern: '\.(Create|Delete|Update|Put|Modify|Patch|Replace|Remove|Terminate|Stop|Start|Reboot|Restore|Attach|Detach|Register|Deregister|Authorize|Revoke|Enable|Disable|Associate|Disassociate|Untag|Tag|Set|Write|Upload|Publish|Subscribe|Unsubscribe|Invoke|Execute|Run|Cancel|Abort|Reset|Rotate|Change|Resize|Scale|Promote|Failover|Copy|Import|Export|Add|Purchase|Accept|Reject|Confirm|Allocate|Release|Grant|BatchWrite|BatchDelete|BatchPut)[A-Za-z0-9]*$'
+          pkg: '^github.com/aws/aws-sdk-go(-v2)?/'
+          msg: "tetherwise is read-only: AWS SDK mutating calls are forbidden (.golangci.yml)"
+        - pattern: '\.(Create|Update|Delete|Patch|Apply|Put|Post)[A-Za-z0-9]*$'
+          pkg: '^k8s.io/client-go/'
+          msg: "tetherwise is read-only: client-go mutating calls are forbidden (.golangci.yml)"
+
+formatters:
+  enable:
+    - gofmt

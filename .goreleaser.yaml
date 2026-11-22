@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# Release artifacts: binaries, checksums.txt, an SBOM per archive and for
+# the source tarball, and a keyless cosign signature over the checksum file.
+# Archives and SBOMs are listed in the checksum, so one signature covers them.
+#
+# Signing uses GitHub Actions OIDC. There is no cosign key in this repo.
+# The release workflow needs id-token: write. Verify with:
+#
+#	cosign verify-blob \
+#	  --certificate-identity 'https://github.com/manthan-parmar-1998/tetherwise/.github/workflows/release.yml@refs/tags/<tag>' \
+#	  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+#	  --bundle checksums.txt.sigstore.json \
+#	  checksums.txt
+#	sha256sum --check --ignore-missing checksums.txt
+version: 2
+
+project_name: tetherwise
+
+builds:
+  - id: tetherwise
+    main: ./cmd/tetherwise
+    binary: tetherwise
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .CommitDate }}
+
+gomod:
+  proxy: true
+
+checksum:
+  name_template: checksums.txt
+
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_src"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    wrap_in_directory: true
+
+sboms:
+  - artifacts: archive
+  - id: source
+    artifacts: source
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+release:
+  prerelease: auto
