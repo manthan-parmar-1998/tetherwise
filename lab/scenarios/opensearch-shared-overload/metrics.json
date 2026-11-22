@@ -1,0 +1,25 @@
+{
+  "schema_version": "v0.1",
+  "samples": [
+    {
+      "resource": "aws:opensearch:domain/search-lab",
+      "metric": "FreeStorageSpace",
+      "current": 6000
+    },
+    {
+      "resource": "aws:opensearch:domain/search-lab",
+      "metric": "JVMMemoryPressure",
+      "current": 92
+    },
+    {
+      "resource": "aws:opensearch:domain/search-lab",
+      "metric": "CPUUtilization",
+      "current": 40
+    },
+    {
+      "resource": "aws:opensearch:domain/search-lab",
+      "metric": "ClusterStatus.red",
+      "current": 0
+    }
+  ]
+}

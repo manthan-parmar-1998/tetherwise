@@ -66,7 +66,7 @@ The maintainer should also install the [DCO GitHub App](https://github.com/apps/
 
 ## What to work on
 
-The packages under `internal/` are stubs. Each `doc.go` says what that package is for and leaves a `TODO(manthan)` for the maintainer, who is writing the core in the style of a hard-way lesson. Open an issue before filling one of those packages in.
+v0.1 implements `graph`, `check`, and the safety gate. Later milestones are listed in the README. Open an issue before adding a package.
 
 Do not add real infrastructure: no production Terraform state, no kubeconfigs, no account identifiers, no customer or employer names. The lab uses synthetic names. Keep it that way.
 

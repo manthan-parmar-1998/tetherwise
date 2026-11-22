@@ -15,7 +15,9 @@ GOVULNCHECK_VERSION ?= v1.10.0
 
 .DEFAULT_GOAL := build
 
-.PHONY: build test lint vuln fmt
+.PHONY: build test lint vuln fmt demo
+
+DEMO := lab/scenarios/opensearch-shared-overload
 
 build:
 	mkdir -p $(dir $(BINARY))
@@ -38,3 +40,10 @@ vuln:
 fmt:
 	gofmt -w .
 	go mod tidy
+
+demo: build
+	./$(BINARY) check $(DEMO)/plan.json \
+		--k8s $(DEMO)/k8s \
+		--edges $(DEMO)/tetherwise.edges.yaml \
+		--metrics fixture:$(DEMO)/metrics.json \
+		--format markdown

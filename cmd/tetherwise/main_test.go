@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,26 +15,43 @@ func TestMain(m *testing.M) {
 	}
 	_ = os.Setenv("HOME", home)
 	_ = os.Setenv("USERPROFILE", home)
+	for _, key := range []string{
+		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+		"AWS_PROFILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE",
+		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+		"KUBECONFIG",
+	} {
+		_ = os.Unsetenv(key)
+	}
+	_ = os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	code := m.Run()
 	_ = os.RemoveAll(home)
 	os.Exit(code)
 }
 
-func execute(t *testing.T, args ...string) (string, string, error) {
+func execute(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
-	cmd := newRootCmd()
+	a := newApp()
+	cmd := a.command()
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 	cmd.SetArgs(args)
 	err := cmd.Execute()
-	return stdout.String(), stderr.String(), err
+	if err != nil {
+		return stdout.String(), stderr.String(), 1
+	}
+	if a.exitCode != 0 {
+		return stdout.String(), stderr.String(), a.exitCode
+	}
+	return stdout.String(), stderr.String(), 0
 }
 
 func TestVersion(t *testing.T) {
-	stdout, stderr, err := execute(t, "version")
-	if err != nil {
-		t.Fatalf("version: %v\nstderr: %s", err, stderr)
+	stdout, stderr, code := execute(t, "version")
+	if code != 0 {
+		t.Fatalf("version code %d: %s", code, stderr)
 	}
 	if !strings.Contains(stdout, "tetherwise "+version) {
 		t.Fatalf("stdout = %q, want version %q", stdout, version)
@@ -45,24 +61,10 @@ func TestVersion(t *testing.T) {
 	}
 }
 
-func TestPendingCommandsExitNonZero(t *testing.T) {
-	for _, name := range []string{"graph", "check"} {
-		t.Run(name, func(t *testing.T) {
-			_, stderr, err := execute(t, name)
-			if !errors.Is(err, errNotImplemented) {
-				t.Fatalf("err = %v, want %v", err, errNotImplemented)
-			}
-			if !strings.Contains(stderr, "not implemented yet") {
-				t.Fatalf("stderr = %q, want the not-implemented message", stderr)
-			}
-		})
-	}
-}
-
 func TestHelpListsCommands(t *testing.T) {
-	stdout, stderr, err := execute(t, "--help")
-	if err != nil {
-		t.Fatalf("help: %v\nstderr: %s", err, stderr)
+	stdout, stderr, code := execute(t, "--help")
+	if code != 0 {
+		t.Fatalf("help code %d: %s", code, stderr)
 	}
 	for _, name := range []string{"graph", "check", "version"} {
 		if !strings.Contains(stdout, name) {
@@ -77,12 +79,12 @@ func TestExplicitConfig(t *testing.T) {
 	if err := os.WriteFile(path, []byte("note: synthetic\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, err := execute(t, "--config", path, "version"); err != nil {
-		t.Fatalf("valid config: %v\nstderr: %s", err, stderr)
+	if _, stderr, code := execute(t, "--config", path, "version"); code != 0 {
+		t.Fatalf("valid config code %d: %s", code, stderr)
 	}
 
 	missing := filepath.Join(dir, "missing.yaml")
-	if _, _, err := execute(t, "--config", missing, "version"); err == nil {
+	if _, _, code := execute(t, "--config", missing, "version"); code == 0 {
 		t.Fatal("missing --config file succeeded")
 	}
 
@@ -90,7 +92,164 @@ func TestExplicitConfig(t *testing.T) {
 	if err := os.WriteFile(bad, []byte("a: [\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := execute(t, "--config", bad, "version"); err == nil {
+	if _, _, code := execute(t, "--config", bad, "version"); code == 0 {
 		t.Fatal("malformed config succeeded")
+	}
+}
+
+func TestGraphRequiresInput(t *testing.T) {
+	_, stderr, code := execute(t, "graph")
+	if code == 0 {
+		t.Fatal("graph with no sources succeeded")
+	}
+	if !strings.Contains(stderr, "--tf-state") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+}
+
+func scenarioDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join("..", "..", "lab", "scenarios", "opensearch-shared-overload")
+}
+
+func TestScenarioCheck(t *testing.T) {
+	dir := scenarioDir(t)
+	stdout, stderr, code := execute(t, "check", filepath.Join(dir, "plan.json"),
+		"--k8s", filepath.Join(dir, "k8s"),
+		"--edges", filepath.Join(dir, "tetherwise.edges.yaml"),
+		"--metrics", "fixture:"+filepath.Join(dir, "metrics.json"),
+		"--format", "markdown",
+	)
+	if code != 0 {
+		t.Fatalf("check code %d\n%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "**Verdict:** high-exposure") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+	for _, want := range []string{"atlas/atlas-indexer", "keel/keel-query", "keel/keel-checkout", "Atlas", "Keel", "JVMMemoryPressure", "FreeStorageSpace"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("missing %q\n%s", want, stdout)
+		}
+	}
+	path := filepath.Join(dir, "expected-comment.md")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		if err := os.WriteFile(path, []byte(stdout), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read golden: %v\n--- got ---\n%s", err, stdout)
+	}
+	if stdout != string(want) {
+		t.Fatalf("golden mismatch\n--- got ---\n%s\n--- want ---\n%s", stdout, want)
+	}
+
+	jsonOut, stderr, code := execute(t, "check", filepath.Join(dir, "plan.json"),
+		"--k8s", filepath.Join(dir, "k8s"),
+		"--edges", filepath.Join(dir, "tetherwise.edges.yaml"),
+		"--metrics", "fixture:"+filepath.Join(dir, "metrics.json"),
+		"--format", "json",
+	)
+	if code != 0 {
+		t.Fatalf("json code %d\n%s", code, stderr)
+	}
+	if !strings.Contains(jsonOut, `"schema_version": "v0.1"`) || !strings.Contains(jsonOut, `"verdict": "high-exposure"`) {
+		t.Fatalf("json:\n%s", jsonOut)
+	}
+
+	_, stderr, code = execute(t, "check", filepath.Join(dir, "plan.json"),
+		"--k8s", filepath.Join(dir, "k8s"),
+		"--edges", filepath.Join(dir, "tetherwise.edges.yaml"),
+		"--metrics", "fixture:"+filepath.Join(dir, "metrics.json"),
+		"--fail-on", "high",
+	)
+	if code != 2 {
+		t.Fatalf("fail-on code = %d\n%s", code, stderr)
+	}
+}
+
+func TestGraphSnapshotFeedsCheck(t *testing.T) {
+	dir := t.TempDir()
+	scenario := scenarioDir(t)
+	snapshot := filepath.Join(dir, "snapshot.json")
+	_, stderr, code := execute(t, "graph",
+		"--tf-plan", filepath.Join(scenario, "plan.json"),
+		"--k8s", filepath.Join(scenario, "k8s"),
+		"--edges", filepath.Join(scenario, "tetherwise.edges.yaml"),
+		"-o", snapshot,
+	)
+	if code != 0 {
+		t.Fatalf("graph code %d\n%s", code, stderr)
+	}
+	stdout, stderr, code := execute(t, "check", filepath.Join(scenario, "plan.json"),
+		"--snapshot", snapshot,
+		"--metrics", "fixture:"+filepath.Join(scenario, "metrics.json"),
+		"--format", "markdown",
+	)
+	if code != 0 {
+		t.Fatalf("check code %d\n%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "high-exposure") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+}
+
+func TestBadFlags(t *testing.T) {
+	scenario := scenarioDir(t)
+	if _, _, code := execute(t, "check", filepath.Join(scenario, "plan.json"), "--format", "html"); code == 0 {
+		t.Fatal("bad format")
+	}
+	if _, _, code := execute(t, "check", filepath.Join(scenario, "plan.json"), "--fail-on", "low"); code == 0 {
+		t.Fatal("bad fail-on")
+	}
+	if _, _, code := execute(t, "check", filepath.Join(scenario, "plan.json"), "--metrics", "nope"); code == 0 {
+		t.Fatal("bad metrics")
+	}
+}
+
+// An offline check must not turn into AWS calls because the machine has an
+// AWS profile. Before the fix, a ~/.aws/config made the offline demo call
+// sts:GetCallerIdentity and refuse to run when that call failed.
+func TestOfflineCheckIgnoresAWSProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("AWS_PROFILE", "default")
+	cfg := filepath.Join(home, ".aws", "config")
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte("[default]\nregion = ca-central-1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := scenarioDir(t)
+	for _, args := range [][]string{
+		{"check", filepath.Join(dir, "plan.json"),
+			"--k8s", filepath.Join(dir, "k8s"),
+			"--edges", filepath.Join(dir, "tetherwise.edges.yaml"),
+			"--metrics", "fixture:" + filepath.Join(dir, "metrics.json")},
+		{"graph", "--tf-plan", filepath.Join(dir, "plan.json")},
+	} {
+		_, stderr, code := execute(t, args...)
+		if code != 0 {
+			t.Fatalf("%s code %d with an AWS profile present\n%s", args[0], code, stderr)
+		}
+		if strings.Contains(stderr, "GetCallerIdentity") {
+			t.Fatalf("%s contacted STS offline\n%s", args[0], stderr)
+		}
+	}
+}
+
+// --metrics cloudwatch still has to prove read-only first.
+func TestCloudWatchCheckStillProves(t *testing.T) {
+	dir := scenarioDir(t)
+	_, stderr, code := execute(t, "check", filepath.Join(dir, "plan.json"),
+		"--metrics", "cloudwatch")
+	if code == 0 {
+		t.Fatal("cloudwatch check without credentials succeeded")
+	}
+	if !strings.Contains(stderr, "refusing to run") {
+		t.Fatalf("stderr = %q, want a refusal", stderr)
 	}
 }

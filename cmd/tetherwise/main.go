@@ -1,7 +1,5 @@
 // Command tetherwise is a read-only, pre-merge CLI.
-// It will answer "who else breaks?" for an infrastructure change.
-// Building the graph, running checks, reading metrics, and writing the
-// audit log are not implemented yet.
+// It answers "who else breaks?" for an infrastructure change.
 package main
 
 import (
@@ -13,6 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/manthan-parmar-1998/tetherwise/internal/audit"
+	"github.com/manthan-parmar-1998/tetherwise/internal/metrics/cloudwatch"
+	"k8s.io/client-go/kubernetes"
 )
 
 // version, commit, and date are injected at link time:
@@ -26,76 +28,55 @@ var (
 	date    = "unknown"
 )
 
-// errNotImplemented is returned by commands whose behavior is not written yet.
-var errNotImplemented = errors.New("not implemented yet")
-
-func main() {
-	if err := newRootCmd().Execute(); err != nil {
-		os.Exit(1)
-	}
+type app struct {
+	v        *viper.Viper
+	audit    *audit.Logger
+	kube     kubernetes.Interface
+	exitCode int
 }
 
-func newRootCmd() *cobra.Command {
-	v := viper.New()
-	var cfgFile string
+func main() {
+	os.Exit(run(os.Args[1:]))
+}
 
+func run(args []string) int {
+	a := newApp()
+	cmd := a.command()
+	cmd.SetArgs(args)
+	if err := cmd.Execute(); err != nil {
+		return 1
+	}
+	return a.exitCode
+}
+
+func newApp() *app {
+	return &app{v: viper.New()}
+}
+
+func (a *app) command() *cobra.Command {
+	var cfgFile string
 	root := &cobra.Command{
 		Use:   "tetherwise",
 		Short: "Read-only pre-merge check for who else breaks",
 		Long: `tetherwise answers "who else breaks?" before an infrastructure change merges.
 
-It will build a dependency graph from Terraform state and plan, Kubernetes
-config, and an optional hand-written edges file, then report exposure and
-how close shared resources are to their limits. It never mutates cloud resources.
-
-Graph building, checks, the safety gate, metrics, and the audit log are not
-implemented yet.`,
+It builds a dependency graph from Terraform state and plan, Kubernetes config,
+and an optional hand-written edges file, then reports exposure and how close
+shared resources are to their limits. It never mutates cloud resources.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			return loadConfig(v, cfgFile)
+			return loadConfig(a.v, cfgFile)
 		},
 	}
-	root.PersistentFlags().StringVar(
-		&cfgFile,
-		"config",
-		"",
-		"config file (default ./tetherwise.yaml or $HOME/.config/tetherwise/tetherwise.yaml)",
-	)
+	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ./tetherwise.yaml or $HOME/.config/tetherwise/tetherwise.yaml)")
+	root.PersistentFlags().Bool("i-know", false, "continue even when the caller is allowed to mutate; for disposable environments only")
+	root.PersistentFlags().String("audit", "", "append-only JSONL audit log for external reads")
+	_ = a.v.BindPFlag("i-know", root.PersistentFlags().Lookup("i-know"))
+	_ = a.v.BindPFlag("audit", root.PersistentFlags().Lookup("audit"))
 	root.CompletionOptions.HiddenDefaultCmd = true
 
-	root.AddCommand(
-		newPendingCmd(
-			"graph",
-			"Build the dependency graph",
-			`Build a dependency graph from Terraform state and plan, Kubernetes config,
-and an optional hand-written edges file.
-
-Not implemented yet.`,
-		),
-		newPendingCmd(
-			"check",
-			"Report exposure for a change",
-			`Report who else is exposed by a change, with a confidence level per
-dependency and shared-resource headroom from CloudWatch.
-
-Not implemented yet.`,
-		),
-		newVersionCmd(),
-	)
+	root.AddCommand(a.newGraphCmd(), a.newCheckCmd(), newVersionCmd())
 	return root
-}
-
-func newPendingCmd(use, short, long string) *cobra.Command {
-	return &cobra.Command{
-		Use:          use,
-		Short:        short,
-		Long:         long,
-		Args:         cobra.NoArgs,
-		SilenceUsage: true,
-		RunE: func(*cobra.Command, []string) error {
-			return errNotImplemented
-		},
-	}
 }
 
 func newVersionCmd() *cobra.Command {
@@ -105,20 +86,43 @@ func newVersionCmd() *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"tetherwise %s (commit %s, built %s)\n",
-				version,
-				commit,
-				date,
-			)
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "tetherwise %s (commit %s, built %s)\n", version, commit, date)
 			return err
 		},
 	}
 }
 
+func (a *app) openAudit() error {
+	if a.audit != nil {
+		return nil
+	}
+	path := a.v.GetString("audit")
+	if path == "" {
+		return nil
+	}
+	logger, err := audit.Open(path, true)
+	if err != nil {
+		return err
+	}
+	a.audit = logger
+	return nil
+}
+
+func (a *app) closeAudit() {
+	if a.audit == nil {
+		return
+	}
+	_ = a.audit.Close()
+	a.audit = nil
+}
+
+func (a *app) thresholds() cloudwatch.Thresholds {
+	var t cloudwatch.Thresholds
+	_ = a.v.UnmarshalKey("thresholds", &t)
+	return t.WithDefaults()
+}
+
 // loadConfig reads an optional YAML file and the environment.
-// Keys are not interpreted yet; Manthan will define them with the commands.
 // Environment variables use the TETHERWISE_ prefix.
 func loadConfig(v *viper.Viper, cfgFile string) error {
 	v.SetEnvPrefix("TETHERWISE")

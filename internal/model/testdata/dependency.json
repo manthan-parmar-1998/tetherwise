@@ -1,0 +1,11 @@
+{
+  "from": "k8s:deployment/atlas/atlas-indexer",
+  "to": "aws:opensearch:domain/search-lab",
+  "kind": "writes-logs-to",
+  "source": "fluentbit",
+  "sources": [
+    "fluentbit",
+    "k8s-env"
+  ],
+  "confidence": "high"
+}

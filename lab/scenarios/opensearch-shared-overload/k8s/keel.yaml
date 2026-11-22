@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit
+  namespace: keel
+  labels:
+    team: Keel
+    owner: keel-oncall
+data:
+  fluent-bit.conf: |
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  search-lab.us-east-1.es.amazonaws.com
+        Port  443
+        Index logs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-query
+  namespace: keel
+  labels:
+    app: keel-query
+    team: Keel
+    owner: keel-oncall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keel-query
+  template:
+    metadata:
+      labels:
+        app: keel-query
+        team: Keel
+    spec:
+      containers:
+        - name: query
+          image: example.local/keel-query:1.0.0
+          env:
+            - name: OPENSEARCH_ENDPOINT
+              value: search-lab.us-east-1.es.amazonaws.com
+            - name: QUERY_URL
+              value: https://search-lab.us-east-1.es.amazonaws.com/products
+        - name: fluent-bit
+          image: example.local/fluent-bit:3.0.0
+          volumeMounts:
+            - name: fluent-bit
+              mountPath: /fluent-bit/etc
+      volumes:
+        - name: fluent-bit
+          configMap:
+            name: fluent-bit
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-checkout
+  namespace: keel
+  labels:
+    app: keel-checkout
+    team: Keel
+    owner: keel-oncall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keel-checkout
+  template:
+    metadata:
+      labels:
+        app: keel-checkout
+        team: Keel
+    spec:
+      containers:
+        - name: checkout
+          image: example.local/keel-checkout:1.0.0
+          env:
+            - name: OPENSEARCH_ENDPOINT
+              value: search-lab.us-east-1.es.amazonaws.com
+            - name: QUERY_URL
+              value: https://search-lab.us-east-1.es.amazonaws.com/typeahead
+        - name: fluent-bit
+          image: example.local/fluent-bit:3.0.0
+          volumeMounts:
+            - name: fluent-bit
+              mountPath: /fluent-bit/etc
+      volumes:
+        - name: fluent-bit
+          configMap:
+            name: fluent-bit

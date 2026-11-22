@@ -1,0 +1,104 @@
+{
+  "schema_version": "v0.1",
+  "verdict": "high-exposure",
+  "reasons": [
+    "update aws:logs:subscription-filter/eks-logs changes filter_pattern.",
+    "aws:opensearch:domain/search-lab is shared by Atlas, Keel.",
+    "Verdict is high-exposure because a shared resource is at or past a limit, or is being deleted or replaced."
+  ],
+  "changes": [
+    {
+      "resource": "aws:logs:subscription-filter/eks-logs",
+      "action": "update",
+      "changed_attrs": [
+        "filter_pattern"
+      ]
+    }
+  ],
+  "affected": [
+    {
+      "resource": "k8s:deployment/keel/keel-query",
+      "name": "keel/keel-query",
+      "kind": "deployment",
+      "team": "Keel",
+      "owner": "keel-oncall",
+      "shared_resource": "aws:opensearch:domain/search-lab",
+      "dependency_kind": "reads-from",
+      "confidence": "high",
+      "sources": [
+        "edges-file"
+      ],
+      "headroom": [
+        {
+          "resource": "aws:opensearch:domain/search-lab",
+          "metric": "FreeStorageSpace",
+          "threshold": 20480,
+          "current": 6000,
+          "headroom": -14480,
+          "unit": "Megabytes",
+          "direction": "higher-better"
+        },
+        {
+          "resource": "aws:opensearch:domain/search-lab",
+          "metric": "JVMMemoryPressure",
+          "threshold": 85,
+          "current": 92,
+          "headroom": -7,
+          "unit": "Percent",
+          "direction": "lower-better"
+        }
+      ]
+    }
+  ],
+  "shared": [
+    {
+      "resource": "aws:opensearch:domain/search-lab",
+      "kind": "opensearch:domain",
+      "teams": [
+        "Atlas",
+        "Keel"
+      ],
+      "limits": [
+        {
+          "resource": "aws:opensearch:domain/search-lab",
+          "metric": "JVMMemoryPressure",
+          "threshold": 85,
+          "current": 92,
+          "headroom": -7,
+          "unit": "Percent",
+          "direction": "lower-better"
+        },
+        {
+          "resource": "aws:opensearch:domain/search-lab",
+          "metric": "FreeStorageSpace",
+          "threshold": 20480,
+          "current": 6000,
+          "headroom": -14480,
+          "unit": "Megabytes",
+          "direction": "higher-better"
+        }
+      ],
+      "tight": true
+    }
+  ],
+  "teams": [
+    "Keel"
+  ],
+  "owners": [
+    "keel-oncall"
+  ],
+  "coverage": {
+    "sources_loaded": [
+      "edges-file",
+      "terraform"
+    ],
+    "edge_sources": [
+      "edges-file",
+      "terraform"
+    ],
+    "resources_without_owner": [
+      "aws:logs:subscription-filter/eks-logs"
+    ],
+    "low_confidence_edges": []
+  }
+}

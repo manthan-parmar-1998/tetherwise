@@ -1,0 +1,12 @@
+{
+  "id": "aws:opensearch:domain/search-lab",
+  "kind": "opensearch:domain",
+  "provider": "aws",
+  "name": "search-lab",
+  "owner": "platform-oncall",
+  "team": "Platform",
+  "attrs": {
+    "domain_name": "search-lab",
+    "endpoint": "search-lab.us-east-1.es.amazonaws.com"
+  }
+}

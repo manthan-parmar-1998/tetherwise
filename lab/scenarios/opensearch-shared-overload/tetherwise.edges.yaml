@@ -1,0 +1,9 @@
+apiVersion: tetherwise.io/v1
+kind: Edges
+edges:
+  - from: k8s:deployment/keel/keel-query
+    to: aws:opensearch:domain/search-lab
+    kind: reads-from
+  - from: k8s:deployment/keel/keel-checkout
+    to: aws:opensearch:domain/search-lab
+    kind: reads-from

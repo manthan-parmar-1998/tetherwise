@@ -1,0 +1,9 @@
+{
+  "resource": "aws:opensearch:domain/search-lab",
+  "metric": "JVMMemoryPressure",
+  "threshold": 85,
+  "current": 92,
+  "headroom": -7,
+  "unit": "Percent",
+  "direction": "lower-better"
+}

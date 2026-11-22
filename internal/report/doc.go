@@ -1,6 +1,6 @@
-// Package report renders findings for a reviewer.
+// Package report renders an exposure result for a reviewer.
 //
-// TODO(manthan): Write a markdown pull-request comment and a versioned
-// report.json. The schema version is part of the file. Writing that local
-// report is the intended output. This package must not call a cloud API.
+// Markdown is a pull-request comment. JSON is a versioned report.json.
+// The schema version is a field in the file. The package does not call a
+// cloud API.
 package report
